@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Account - Sound Detector</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <link rel="icon" href="{{ url_for('static', filename='images/anchor.png') }}" type="image/png">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-background"></div>
+        
+        <div class="auth-card">
+            <div class="auth-header">
+                <a href="{{ url_for('login') }}" class="back-button">
+                    <i class="fas fa-arrow-left"></i>
+                </a>
+                <h1 class="auth-title">Create Account</h1>
+                <p class="auth-subtitle">Sign up to start detecting sounds</p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-messages">
+                        {% for category, message in messages %}
+                            <div class="flash-message {{ category }}">
+                                {{ message }}
+                                <button class="flash-close" onclick="this.parentElement.remove()">×</button>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('register') }}" id="register-form">
+                <div class="form-group">
+                    <div class="input-with-icon">
+                        <i class="fas fa-user"></i>
+                        <input type="text" 
+                               name="username" 
+                               id="username"
+                               class="form-input" 
+                               placeholder="Username" 
+                               required
+                               minlength="3"
+                               autocomplete="username">
+                    </div>
+                    <div class="validation-error" id="username-error"></div>
+                </div>
+                
+                <div class="form-group">
+                    <div class="input-with-icon">
+                        <i class="fas fa-envelope"></i>
+                        <input type="email" 
+                               name="email" 
+                               id="email"
+                               class="form-input" 
+                               placeholder="Email" 
+                               required
+                               autocomplete="email">
+                    </div>
+                    <div class="validation-error" id="email-error"></div>
+                </div>
+                
+                <div class="form-group">
+                    <div class="input-with-icon">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" 
+                               name="password" 
+                               id="password"
+                               class="form-input" 
+                               placeholder="Password" 
+                               required
+                               minlength="6"
+                               autocomplete="new-password">
+                        <button type="button" class="password-toggle" id="password-toggle">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                    <div class="validation-error" id="password-error"></div>
+                </div>
+
+                <div class="form-group">
+                    <div class="input-with-icon">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" 
+                               name="confirm_password" 
+                               id="confirm-password"
+                               class="form-input" 
+                               placeholder="Confirm Password" 
+                               required
+                               minlength="6"
+                               autocomplete="new-password">
+                        <button type="button" class="password-toggle" id="confirm-password-toggle">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                    <div class="validation-error" id="confirm-password-error"></div>
+                </div>
+                
+                <button type="submit" class="btn-primary" id="register-button">
+                    <i class="fas fa-user-plus"></i> Register
+                </button>
+            </form>
+
+            <div class="auth-links">
+                <a href="{{ url_for('login') }}" class="auth-link">
+                    <i class="fas fa-sign-in-alt"></i> Already have an account? Login
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="success-modal" class="modal" style="display: none;">
+        <div class="modal-content success-modal">
+            <div class="success-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h3>Account Created Successfully</h3>
+            <p>Your account has been registered!</p>
+            <div class="modal-actions">
+                <button class="btn-primary" onclick="redirectToLogin()">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isLoading = false;
+
+        // Password visibility toggle
+        document.getElementById('password-toggle').addEventListener('click', function() {
+            togglePasswordVisibility('password');
+        });
+
+        document.getElementById('confirm-password-toggle').addEventListener('click', function() {
+            togglePasswordVisibility('confirm-password');
+        });
+
+        function togglePasswordVisibility(fieldId) {
+            const passwordInput = document.getElementById(fieldId);
+            const icon = document.getElementById(fieldId + '-toggle').querySelector('i');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        }
+
+        // Real-time validation
+        document.getElementById('username').addEventListener('input', function() {
+            validateUsername(this.value);
+        });
+
+        document.getElementById('email').addEventListener('input', function() {
+            validateEmail(this.value);
+        });
+
+        document.getElementById('password').addEventListener('input', function() {
+            validatePassword(this.value);
+            validatePasswordMatch();
+        });
+
+        document.getElementById('confirm-password').addEventListener('input', function() {
+            validatePasswordMatch();
+        });
+
+        // Form submission with validation
+        document.getElementById('register-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+            
+            if (!validateUsername(username) || 
+                !validateEmail(email) || 
+                !validatePassword(password) || 
+                !validatePasswordMatch()) {
+                return;
+            }
+            
+            if (isLoading) return;
+            
+            registerUser(username, email, password, confirmPassword);
+        });
+
+        function validateUsername(username) {
+            const errorElement = document.getElementById('username-error');
+            
+            if (!username) {
+                errorElement.textContent = 'Username is required';
+                return false;
+            }
+            
+            if (username.length < 3) {
+                errorElement.textContent = 'Username must be at least 3 characters';
+                return false;
+            }
+            
+            errorElement.textContent = '';
+            return true;
+        }
+
+        function validateEmail(email) {
+            const errorElement = document.getElementById('email-error');
+            const emailRegex = /^[^@]+@[^@]+\.[^@]+/;
+            
+            if (!email) {
+                errorElement.textContent = 'Email is required';
+                return false;
+            }
+            
+            if (!emailRegex.test(email)) {
+                errorElement.textContent = 'Enter a valid email';
+                return false;
+            }
+            
+            errorElement.textContent = '';
+            return true;
+        }
+
+        function validatePassword(password) {
+            const errorElement = document.getElementById('password-error');
+            
+            if (!password) {
+                errorElement.textContent = 'Password is required';
+                return false;
+            }
+            
+            if (password.length < 6) {
+                errorElement.textContent = 'Password must be at least 6 characters';
+                return false;
+            }
+            
+            errorElement.textContent = '';
+            return true;
+        }
+
+        function validatePasswordMatch() {
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+            const errorElement = document.getElementById('confirm-password-error');
+            
+            if (!confirmPassword) {
+                errorElement.textContent = 'Please confirm your password';
+                return false;
+            }
+            
+            if (password !== confirmPassword) {
+                errorElement.textContent = 'Passwords do not match';
+                return false;
+            }
+            
+            errorElement.textContent = '';
+            return true;
+        }
+
+        async function registerUser(username, email, password, confirmPassword) {
+            isLoading = true;
+            
+            const button = document.getElementById('register-button');
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registering...';
+
+            const formData = new FormData();
+            formData.append('username', username);
+            formData.append('email', email);
+            formData.append('password', password);
+            formData.append('confirm_password', confirmPassword);
+
+            try {
+                const response = await fetch('{{ url_for("register") }}', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData
+                });
+
+                if (response.redirected) {
+                    // Success - redirect to login
+                    window.location.href = response.url;
+                } else {
+                    // Error - show message
+                    const result = await response.json();
+                    if (result.error) {
+                        showError(result.error);
+                    }
+                }
+            } catch (error) {
+                showError('Network error: ' + error.message);
+            } finally {
+                isLoading = false;
+                button.disabled = false;
+                button.innerHTML = '<i class="fas fa-user-plus"></i> Register';
+            }
+        }
+
+        function showError(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast-notification error';
+            toast.innerHTML = `
+                <div class="toast-content">
+                    <strong>Registration Failed:</strong> ${message}
+                </div>
+                <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+            `;
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.remove();
+                }
+            }, 5000);
+        }
+
+        function showSuccessModal() {
+            document.getElementById('success-modal').style.display = 'flex';
+        }
+
+        function redirectToLogin() {
+            window.location.href = "{{ url_for('login') }}";
+        }
+
+        // Auto-validate on page load if there are values
+        document.addEventListener('DOMContentLoaded', function() {
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+            
+            if (username) validateUsername(username);
+            if (email) validateEmail(email);
+            if (password) validatePassword(password);
+            if (confirmPassword) validatePasswordMatch();
+        });
+    </script>
+
+    <style>
+        .back-button {
+            position: absolute;
+            top: 0;
+            left: 0;
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .back-button:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .success-modal {
+            text-align: center;
+        }
+
+        .success-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #4CAF50, #8BC34A);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .success-modal h3 {
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+
+        .success-modal p {
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+        }
+
+        /* Add to existing CSS */
+        .input-with-icon {
+            position: relative;
+        }
+
+        .input-with-icon i:first-child {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-secondary);
+            z-index: 1;
+        }
+
+        .input-with-icon .form-input {
+            padding-left: 45px;
+            padding-right: 45px;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 5px;
+            font-size: 1rem;
+        }
+
+        .password-toggle:hover {
+            color: var(--text-primary);
+        }
+
+        .validation-error {
+            color: #f44336;
+            font-size: 12px;
+            margin-top: 5px;
+            min-height: 18px;
+            font-weight: 500;
+        }
+
+        .form-input:invalid {
+            border-color: #f44336;
+        }
+
+        .form-input:valid {
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .fa-spinner {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</body>
+</html>

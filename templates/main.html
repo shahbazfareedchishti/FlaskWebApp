@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sound Detector</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <link rel="icon" href="{{ url_for('static', filename='images/anchor.png') }}" type="image/png">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Navigation Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <div class="app-logo">
+                    <i class="fas fa-anchor"></i>
+                    <span>Sound Detector</span>
+                </div>
+                <div class="user-info">
+                    Welcome, {{ session.username }}!
+                </div>
+            </div>
+            
+            <ul class="sidebar-menu">
+                <li class="active"><a href="{{ url_for('main') }}"><i class="fas fa-home"></i> Home</a></li>
+                <li><a href="{{ url_for('logs') }}"><i class="fas fa-history"></i> Logs</a></li>
+                <li><a href="{{ url_for('manage_account') }}"><i class="fas fa-user-cog"></i> Manage Account</a></li>
+                <li><a href="#" onclick="showLogoutConfirmation()"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="waves-background"></div>
+            
+            <div class="detection-container">
+                <!-- Permission Request Modal -->
+                <div id="permission-modal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="permission-icon">
+                            <i class="fas fa-microphone"></i>
+                        </div>
+                        <h3>Microphone Access Required</h3>
+                        <p>Sound Detector needs access to your microphone to detect sounds. Please allow microphone permissions to continue.</p>
+                        <div class="modal-actions">
+                            <button class="btn-secondary" onclick="hidePermissionModal()">Cancel</button>
+                            <button class="btn-primary" onclick="requestMicrophonePermission()">Allow Microphone</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Permission Denied Modal -->
+                <div id="permission-denied-modal" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="permission-icon denied">
+                            <i class="fas fa-microphone-slash"></i>
+                        </div>
+                        <h3>Microphone Access Denied</h3>
+                        <p>Microphone permission is required for sound detection. Please enable microphone access in your browser settings and refresh the page.</p>
+                        <div class="modal-actions">
+                            <button class="btn-primary" onclick="hidePermissionDeniedModal()">OK</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detection Results -->
+                <div id="detection-result" class="detection-result" style="display: none;">
+                    <div class="result-card" id="result-card">
+                        <i id="result-icon" class="fas fa-question-circle"></i>
+                        <div class="result-info">
+                            <h3 id="detection-type">Unknown</h3>
+                            <p id="detection-confidence">0% confidence</p>
+                            <div class="snr-info">
+                                <span id="snr-value">SNR: 0 dB</span>
+                                <span id="snr-quality" class="quality-badge">Unknown</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Spectrogram image produced by server -->
+                    <div id="spectrogram-container" style="margin-top:1rem; display:none;">
+                        <h4>Spectrogram</h4>
+                        <img id="spectrogram-img" src="" alt="Spectrogram" style="max-width:100%; border-radius:8px;" />
+                    </div>
+
+                    <!-- SNR time-series chart -->
+                    <div id="snr-chart-container" style="margin-top:1rem; display:none;">
+                        <h4>SNR Over Time</h4>
+                        <canvas id="snr-chart" height="120"></canvas>
+                    </div>
+                </div>
+                <div class="analysis-actions" style="margin-top: 1rem;">
+                    <button class="btn-primary" onclick="viewSNRAnalysis()" style="padding: 0.5rem 1rem;">
+                        <i class="fas fa-chart-line"></i> View Signal Analysis
+                    </button>
+                </div>
+
+                <script>
+                function viewSNRAnalysis() {
+                    window.location.href = "{{ url_for('snr_analysis') }}";
+                }
+                </script>
+
+                <!-- Wave Animation -->
+                <div id="wave-animation" class="wave-animation" style="display: none;">
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                    <div class="wave-bar"></div>
+                </div>
+
+                <!-- Detection Button -->
+                <div class="detection-button-container">
+                    <button id="detect-button" class="detect-button">
+                        <i class="fas fa-microphone"></i>
+                        <span>Tap to Detect</span>
+                    </button>
+                </div>
+
+                <!-- Status Message -->
+                <div id="status-message" class="status-message" style="display: none;">
+                    <p>Recording audio...</p>
+                    <p class="sub-message">Make noise near your microphone</p>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <div id="logout-modal" class="modal" style="display: none;">
+        <div class="modal-content centered-modal">
+            <div class="modal-icon logout-icon">
+                <i class="fas fa-sign-out-alt"></i>
+            </div>
+            <h3>Ready to leave?</h3>
+            <p>Are you sure you want to logout from your account?</p>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="hideLogoutConfirmation()">Cancel</button>
+                <button class="btn-danger" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Audio recording and detection
+        let mediaRecorder;
+        let audioChunks = [];
+        let isDetecting = false;
+        let isProcessing = false;
+        let hasMicrophonePermission = false;
+
+        // Check microphone permission on page load
+        document.addEventListener('DOMContentLoaded', async function() {
+            await checkMicrophonePermission();
+        });
+
+        document.getElementById('detect-button').addEventListener('click', async function() {
+            if (!hasMicrophonePermission) {
+                showPermissionModal();
+                return;
+            }
+            await toggleDetect();
+        });
+
+        async function checkMicrophonePermission() {
+            try {
+                // Check if we can query microphone permission
+                const permissionStatus = await navigator.permissions.query({ name: 'microphone' });
+                
+                if (permissionStatus.state === 'granted') {
+                    hasMicrophonePermission = true;
+                    return true;
+                } else if (permissionStatus.state === 'prompt') {
+                    // Permission hasn't been decided yet
+                    return false;
+                } else {
+                    // Permission denied
+                    return false;
+                }
+            } catch (error) {
+                console.log('Permission query not supported:', error);
+                // Fallback: try to get user media
+                return await testMicrophoneAccess();
+            }
+        }
+
+        async function testMicrophoneAccess() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                // Immediately stop the stream since we just wanted to test access
+                stream.getTracks().forEach(track => track.stop());
+                hasMicrophonePermission = true;
+                return true;
+            } catch (error) {
+                console.log('Microphone access denied:', error);
+                hasMicrophonePermission = false;
+                return false;
+            }
+        }
+
+        async function requestMicrophonePermission() {
+            try {
+                hidePermissionModal();
+                
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    } 
+                });
+                
+                // Stop the stream immediately after getting permission
+                stream.getTracks().forEach(track => track.stop());
+                
+                hasMicrophonePermission = true;
+                showNotification('Microphone access granted!', 'success');
+                
+            } catch (error) {
+                console.log('Microphone permission denied:', error);
+                hasMicrophonePermission = false;
+                showPermissionDeniedModal();
+            }
+        }
+        async function convertToWav(audioBlob) {
+            return new Promise((resolve, reject) => {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const fileReader = new FileReader();
+                
+                fileReader.onload = async function() {
+                    try {
+                        const audioBuffer = await audioContext.decodeAudioData(fileReader.result);
+                        
+                        // Resample to 16000Hz if needed (common for audio models)
+                        const targetSampleRate = 16000;
+                        let sourceBuffer = audioBuffer;
+                        
+                        if (audioBuffer.sampleRate !== targetSampleRate) {
+                            sourceBuffer = await resampleAudioBuffer(audioBuffer, targetSampleRate);
+                        }
+                        
+                        const wavBlob = audioBufferToWav(sourceBuffer);
+                        resolve(wavBlob);
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                
+                fileReader.onerror = reject;
+                fileReader.readAsArrayBuffer(audioBlob);
+            });
+        }
+
+        function resampleAudioBuffer(audioBuffer, targetSampleRate) {
+            return new Promise((resolve) => {
+                const sourceSampleRate = audioBuffer.sampleRate;
+                const length = audioBuffer.length * targetSampleRate / sourceSampleRate;
+                const offlineContext = new OfflineAudioContext(
+                    audioBuffer.numberOfChannels, 
+                    length, 
+                    targetSampleRate
+                );
+                
+                const bufferSource = offlineContext.createBufferSource();
+                bufferSource.buffer = audioBuffer;
+                bufferSource.connect(offlineContext.destination);
+                bufferSource.start();
+                
+                offlineContext.startRendering().then(resolve);
+            });
+        }
+
+        function audioBufferToWav(buffer, float32 = false) {
+            const numChannels = buffer.numberOfChannels;
+            const sampleRate = buffer.sampleRate;
+            const format = float32 ? 3 : 1; 
+            const bitDepth = float32 ? 32 : 16;
+            
+            let result;
+            if (float32) {
+                result = interleaveFloat32(buffer.getChannelData(0), numChannels > 1 ? buffer.getChannelData(1) : null);
+            } else {
+                result = interleave16BitPCM(buffer.getChannelData(0), numChannels > 1 ? buffer.getChannelData(1) : null);
+            }
+            
+            return encodeWAV(result, float32, numChannels, sampleRate, bitDepth);
+        }
+
+        function interleave16BitPCM(inputL, inputR) {
+            const isMono = !inputR; // If no right channel, it's mono
+            const length = isMono ? inputL.length : inputL.length + inputR.length;
+            const result = new DataView(new ArrayBuffer(length * 2));
+            
+            let index = 0;
+            
+            for (let i = 0; i < inputL.length; i++) {
+                let sample = Math.max(-1, Math.min(1, inputL[i]));
+                sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+                result.setInt16(index * 2, sample, true);
+                index++;
+                
+                // Only process right channel if it exists
+                if (inputR && i < inputR.length) {
+                    sample = Math.max(-1, Math.min(1, inputR[i]));
+                    sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+                    result.setInt16(index * 2, sample, true);
+                    index++;
+                }
+            }
+            
+            return result;
+        }
+
+        function encodeWAV(samples, float32, numChannels, sampleRate, bitDepth) {
+            const bytesPerSample = bitDepth / 8;
+            const blockAlign = numChannels * bytesPerSample;
+            
+            const buffer = new ArrayBuffer(44 + samples.byteLength);
+            const view = new DataView(buffer);
+            
+            // WAV header
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + samples.byteLength, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, float32 ? 3 : 1, true); // PCM = 1, FLOAT = 3
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * blockAlign, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, bitDepth, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, samples.byteLength, true);
+            
+            // Copy samples
+            const samplesUint8 = new Uint8Array(samples.buffer);
+            for (let i = 0; i < samplesUint8.length; i++) {
+                view.setUint8(44 + i, samplesUint8[i]);
+            }
+            
+            return new Blob([view], { type: 'audio/wav' });
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        function showPermissionModal() {
+            document.getElementById('permission-modal').style.display = 'flex';
+        }
+
+        function hidePermissionModal() {
+            document.getElementById('permission-modal').style.display = 'none';
+        }
+
+        function showPermissionDeniedModal() {
+            document.getElementById('permission-denied-modal').style.display = 'flex';
+        }
+
+        function hidePermissionDeniedModal() {
+            document.getElementById('permission-denied-modal').style.display = 'none';
+        }
+
+        async function toggleDetect() {
+            if (isDetecting || isProcessing) return;
+
+            // Double-check permission
+            if (!hasMicrophonePermission) {
+                const hasAccess = await testMicrophoneAccess();
+                if (!hasAccess) {
+                    showPermissionModal();
+                    return;
+                }
+            }
+
+            startDetection();
+            
+            try {
+                await startRecording();
+                await new Promise(resolve => setTimeout(resolve, 3000)); // Record for 3 seconds
+                await stopRecording();
+                await processAudio();
+            } catch (error) {
+                if (error.name === 'NotAllowedError') {
+                    hasMicrophonePermission = false;
+                    showPermissionModal();
+                } else {
+                    showError('Detection error: ' + error.message);
+                }
+            } finally {
+                stopDetection();
+            }
+        }
+
+        function startDetection() {
+            isDetecting = true;
+            isProcessing = true;
+            
+            // Show animations
+            document.getElementById('wave-animation').style.display = 'flex';
+            document.getElementById('status-message').style.display = 'block';
+            document.getElementById('detection-result').style.display = 'none';
+            
+            // Update button
+            const button = document.getElementById('detect-button');
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Processing...</span>';
+            button.disabled = true;
+            
+            // Add pulse animation to button
+            button.style.animation = 'pulse 1s infinite';
+        }
+
+        function stopDetection() {
+            isDetecting = false;
+            isProcessing = false;
+            
+            // Hide animations
+            document.getElementById('wave-animation').style.display = 'none';
+            document.getElementById('status-message').style.display = 'none';
+            
+            // Reset button
+            const button = document.getElementById('detect-button');
+            button.innerHTML = '<i class="fas fa-microphone"></i><span>Tap to Detect</span>';
+            button.disabled = false;
+            button.style.animation = 'none';
+        }
+
+        async function startRecording() {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    sampleRate: 16000,
+                    channelCount: 1
+                } 
+            });
+            
+            // Remove the forced WAV MIME type - let browser choose best format
+            mediaRecorder = new MediaRecorder(stream);
+            
+            console.log('MediaRecorder mimeType:', mediaRecorder.mimeType);
+            window._lastRecorderMimeType = mediaRecorder.mimeType || '';
+            audioChunks = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.start();
+        }
+
+        async function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                return new Promise((resolve) => {
+                    mediaRecorder.onstop = resolve;
+                    mediaRecorder.stop();
+                    
+                    // Stop all tracks
+                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                });
+            }
+        }
+
+        async function processAudio() {
+            if (audioChunks.length === 0) {
+                throw new Error('No audio data recorded');
+            }
+
+            // Get the actual format the browser recorded in
+            const actualMimeType = window._lastRecorderMimeType || 'audio/webm';
+            const originalBlob = new Blob(audioChunks, { type: actualMimeType });
+
+            console.log('Original recording format:', actualMimeType, 'Size:', originalBlob.size);
+
+            try {
+                // Show conversion status
+                const status = document.getElementById('status-message');
+                if (status) {
+                    status.innerHTML = '<p>Converting to WAV format...</p><p class="sub-message">Optimizing for analysis</p>';
+                }
+
+                console.log('Converting to WAV...');
+                const wavBlob = await convertToWav(originalBlob);
+                
+                console.log('WAV conversion successful:', {
+                    originalSize: originalBlob.size,
+                    wavSize: wavBlob.size,
+                    wavType: wavBlob.type
+                });
+
+                const formData = new FormData();
+                formData.append('audio', wavBlob, 'recording.wav');
+                formData.append('original_format', actualMimeType);
+
+                const response = await fetch('/detect', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(text || 'Network response was not ok');
+                }
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showResult(result);
+                } else {
+                    showError(result.error || 'Detection failed');
+                }
+            } catch (error) {
+                console.error('Audio processing error:', error);
+                showError('Audio processing failed: ' + error.message);
+            }
+        }
+
+        function showResult(result) {
+            document.getElementById('detection-result').style.display = 'block';
+            
+            // Update result display
+            document.getElementById('detection-type').textContent = result.predicted_class;
+            document.getElementById('detection-confidence').textContent = result.confidence + '% confidence';
+            document.getElementById('snr-value').textContent = 'SNR: ' + (result.snr_metrics?.snr_db || 0) + ' dB';
+            document.getElementById('snr-quality').textContent = result.snr_metrics?.quality || 'Unknown';
+            
+            // Set colors based on sound class
+            const resultCard = document.getElementById('result-card');
+            const icon = document.getElementById('result-icon');
+            const snrQuality = document.getElementById('snr-quality');
+            
+            // Set icon and colors
+            const classInfo = getClassInfo(result.predicted_class);
+            icon.className = classInfo.icon;
+            resultCard.style.borderColor = classInfo.color + '80'; // 50% opacity
+            snrQuality.className = 'quality-badge ' + getSNRQualityClass(result.snr_metrics?.snr_db || 0);
+            
+            // Show snackbar-like notification
+            showNotification(result);
+
+            // Display spectrogram image if available
+            const specContainer = document.getElementById('spectrogram-container');
+            const specImg = document.getElementById('spectrogram-img');
+            if (result.spectrogram_url) {
+                specImg.src = result.spectrogram_url;
+                specContainer.style.display = 'block';
+            } else {
+                specContainer.style.display = 'none';
+            }
+
+            // Draw SNR time-series if available
+            const snrContainer = document.getElementById('snr-chart-container');
+            if (result.snr_metrics && result.snr_metrics.snr_values_over_time && result.snr_metrics.time_bins) {
+                snrContainer.style.display = 'block';
+                drawSNRChart(result.snr_metrics.time_bins, result.snr_metrics.snr_values_over_time);
+                // Open detailed analysis in a new tab (POST realtime data)
+                postRealtimeAnalysis(result);
+            } else {
+                snrContainer.style.display = 'none';
+            }
+        }
+
+        // POST realtime SNR data to /snr-analysis and open in new tab
+        function postRealtimeAnalysis(result) {
+            try {
+                const payload = result.snr_metrics || result.snr_analysis || {};
+                // Normalize to expected keys
+                const snr_values = payload.snr_values_over_time || payload.snr_over_time;
+                const time_bins = payload.time_bins || payload.time_bins;
+                const total_duration = payload.total_duration || payload.total_duration;
+
+                const data = {
+                    snr_values_over_time: payload.snr_values_over_time || payload.snr_over_time,
+                    snr_over_time: payload.snr_over_time || payload.snr_values_over_time,
+                    time_bins: payload.time_bins,
+                    total_duration: payload.total_duration
+                };
+
+                // Create a form and submit to /snr-analysis with target _blank
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/snr-analysis';
+                form.target = '_blank';
+
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'snr_data';
+                input.value = JSON.stringify(data);
+                form.appendChild(input);
+
+                document.body.appendChild(form);
+                form.submit();
+                form.remove();
+            } catch (e) {
+                console.error('Failed to post realtime analysis:', e);
+            }
+        }
+
+        // Chart.js instance for SNR chart
+        let snrChart = null;
+        function drawSNRChart(timeBins, snrValues) {
+            const ctx = document.getElementById('snr-chart').getContext('2d');
+            const labels = timeBins.map(t => (Math.round(t * 100) / 100).toString());
+
+            const data = {
+                labels: labels,
+                datasets: [{
+                    label: 'SNR (dB)',
+                    data: snrValues,
+                    borderColor: 'rgba(33,150,243,1)',
+                    backgroundColor: 'rgba(33,150,243,0.1)',
+                    tension: 0.2,
+                    pointRadius: 0
+                }]
+            };
+
+            const config = {
+                type: 'line',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { display: true, title: { display: true, text: 'Time (s)' } },
+                        y: { display: true, title: { display: true, text: 'SNR (dB)' } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            };
+
+            if (snrChart) {
+                snrChart.data = data;
+                snrChart.update();
+            } else {
+                snrChart = new Chart(ctx, config);
+            }
+        }
+
+        function getClassInfo(className) {
+            const classes = {
+                'SpeedBoat': { icon: 'fas fa-ship', color: '#4CAF50' },
+                'UUV': { icon: 'fas fa-satellite', color: '#2196F3' },
+                'KaiYuan': { icon: 'fas fa-anchor', color: '#FF9800' },
+                'Unknown': { icon: 'fas fa-question-circle', color: '#9E9E9E' }
+            };
+            return classes[className] || classes['Unknown'];
+        }
+
+        function getSNRQualityClass(snrDb) {
+            if (snrDb >= 25) return 'excellent';
+            if (snrDb >= 20) return 'good';
+            if (snrDb >= 15) return 'fair';
+            if (snrDb >= 10) return 'poor';
+            return 'very-poor';
+        }
+
+        function showNotification(result, type = 'result') {
+            if (type === 'success') {
+                // Create success toast
+                const toast = document.createElement('div');
+                toast.className = 'toast-notification success';
+                toast.innerHTML = `
+                    <div class="toast-content">
+                        <strong>${result}</strong>
+                    </div>
+                    <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+                `;
+                document.body.appendChild(toast);
+                
+                setTimeout(() => toast.remove(), 3000);
+                return;
+            }
+
+            // Create result toast
+            const toast = document.createElement('div');
+            toast.className = 'toast-notification ' + getClassInfo(result.predicted_class).color.replace('#', '');
+            toast.innerHTML = `
+                <div class="toast-content">
+                    <strong>Detected: ${result.predicted_class} (${result.confidence}%)</strong>
+                    ${result.snr_metrics ? `<br>SNR: ${result.snr_metrics.snr_db} dB (${result.snr_metrics.quality})` : ''}
+                </div>
+                <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+            `;
+            
+            document.body.appendChild(toast);
+            
+            // Auto remove after 6 seconds
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.remove();
+                }
+            }, 6000);
+        }
+
+        function showError(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast-notification error';
+            toast.innerHTML = `
+                <div class="toast-content">
+                    <strong>Detection Failed:</strong> ${message}
+                </div>
+                <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+            `;
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.remove();
+                }
+            }, 4000);
+        }
+
+        // Logout functionality
+        function showLogoutConfirmation() {
+            document.getElementById('logout-modal').style.display = 'flex';
+        }
+
+        function hideLogoutConfirmation() {
+            document.getElementById('logout-modal').style.display = 'none';
+        }
+
+        function logout() {
+            window.location.href = "{{ url_for('logout') }}";
+        }
+
+        // Close modals when clicking outside
+        window.addEventListener('click', function(event) {
+            const modals = ['permission-modal', 'permission-denied-modal', 'logout-modal'];
+            modals.forEach(modalId => {
+                const modal = document.getElementById(modalId);
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        });
+    </script>
+
+    <style>
+        /* Permission modal styles */
+        .permission-icon {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .permission-icon i {
+            font-size: 3rem;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .permission-icon.denied i {
+            background: linear-gradient(135deg, #f44336, #FF9800);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Add to existing modal styles */
+        .modal-content h3 {
+            text-align: center;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .modal-content p {
+            text-align: center;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            line-height: 1.5;
+        }
+
+        /* Success toast */
+        .toast-notification.success {
+            border-left-color: #4CAF50;
+        }
+    </style>
+</body>
+</html>

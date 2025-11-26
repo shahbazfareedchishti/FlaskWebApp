@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detection Logs - Sound Detector</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <link rel="icon" href="{{ url_for('static', filename='images/anchor.png') }}" type="image/png">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Navigation Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <div class="app-logo">
+                    <i class="fas fa-anchor"></i>
+                    <span>Sound Detector</span>
+                </div>
+                <div class="user-info">
+                    Welcome, {{ session.username }}!
+                </div>
+            </div>
+            
+            <ul class="sidebar-menu">
+                <li><a href="{{ url_for('main') }}"><i class="fas fa-home"></i> Home</a></li>
+                <li class="active"><a href="{{ url_for('logs') }}"><i class="fas fa-history"></i> Logs</a></li>
+                <li><a href="{{ url_for('manage_account') }}"><i class="fas fa-user-cog"></i> Manage Account</a></li>
+                <li><a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="logs-container">
+                <div class="logs-header">
+                    <h1><i class="fas fa-history"></i> Detection Logs</h1>
+                    <p>Your sound detection history</p>
+                </div>
+
+                {% if not detections %}
+                <div class="empty-state">
+                    <i class="fas fa-waves" style="font-size: 4rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                    <h3>No detections yet</h3>
+                    <p>Start detecting sounds to see them here!</p>
+                    <a href="{{ url_for('main') }}" class="btn-primary" style="margin-top: 1rem;">
+                        <i class="fas fa-microphone"></i> Start Detecting
+                    </a>
+                </div>
+                {% else %}
+                <div class="logs-list">
+                    {% for detection in detections %}
+                    <div class="log-card" data-sound-class="{{ detection.sound_class }}">
+                        <div class="log-icon">
+                            <i class="{{ detection.sound_class | get_sound_icon }}"></i>
+                        </div>
+                        <div class="log-content">
+                            <div class="log-header">
+                                <h3 class="log-title {{ 'noise' if detection.sound_class == 'Noise' else '' }}">
+                                    {{ detection.sound_class }}
+                                </h3>
+                                <span class="log-confidence {{ 'noise' if detection.sound_class == 'Noise' else '' }}">
+                                    {{ "%.1f"|format(detection.confidence) }}%
+                                </span>
+                            </div>
+                            <div class="log-details">
+                                <span class="log-timestamp">
+                                    <i class="fas fa-clock"></i>
+                                    {{ detection.timestamp | format_datetime }}
+                                </span>
+                                {% if detection.latitude and detection.longitude %}
+                                <span class="log-location">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    {{ "%.4f, %.4f"|format(detection.latitude, detection.longitude) }}
+                                </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </main>
+    </div>
+</body>
+</html>

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Account - Sound Detector</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <link rel="icon" href="{{ url_for('static', filename='images/anchor.png') }}" type="image/png"> 
+</head>
+<body>
+    <div class="app-container">
+        <!-- Navigation Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <div class="app-logo">
+                    <i class="fas fa-anchor"></i>
+                    <span>Sound Detector</span>
+                </div>
+                <div class="user-info">
+                    Welcome, {{ session.username }}!
+                </div>
+            </div>
+            
+            <ul class="sidebar-menu">
+                <li><a href="{{ url_for('main') }}"><i class="fas fa-home"></i> Home</a></li>
+                <li><a href="{{ url_for('logs') }}"><i class="fas fa-history"></i> Logs</a></li>
+                <li class="active"><a href="{{ url_for('manage_account') }}"><i class="fas fa-user-cog"></i> Manage Account</a></li>
+                <li><a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="waves-background"></div>
+            
+            <div class="manage-account-container">
+                <div class="account-header">
+                    <h1><i class="fas fa-user-cog"></i> Manage Account</h1>
+                    <p>Update your account information</p>
+                </div>
+
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        <div class="flash-messages">
+                            {% for category, message in messages %}
+                                <div class="flash-message {{ category }}">
+                                    {{ message }}
+                                    <button class="flash-close" onclick="this.parentElement.remove()">×</button>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                {% endwith %}
+
+                <form method="POST" action="{{ url_for('update_account') }}" class="account-form">
+                    <div class="form-group">
+                        <div class="input-with-icon">
+                            <i class="fas fa-user"></i>
+                            <input type="text" 
+                                   name="username" 
+                                   class="form-input" 
+                                   placeholder="Username" 
+                                   value="{{ user.username }}"
+                                   required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="input-with-icon">
+                            <i class="fas fa-envelope"></i>
+                            <input type="email" 
+                                   name="email" 
+                                   class="form-input" 
+                                   placeholder="Email" 
+                                   value="{{ user.email }}"
+                                   required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="input-with-icon">
+                            <i class="fas fa-lock"></i>
+                            <input type="password" 
+                                   name="current_password" 
+                                   class="form-input" 
+                                   placeholder="Current Password (for verification)"
+                                   required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="input-with-icon">
+                            <i class="fas fa-key"></i>
+                            <input type="password" 
+                                   name="new_password" 
+                                   class="form-input" 
+                                   placeholder="New Password (leave blank to keep current)"
+                                   minlength="6">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="input-with-icon">
+                            <i class="fas fa-key"></i>
+                            <input type="password" 
+                                   name="confirm_password" 
+                                   class="form-input" 
+                                   placeholder="Confirm New Password"
+                                   minlength="6">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn-primary btn-gradient">
+                        <i class="fas fa-save"></i> Update Account
+                    </button>
+                </form>
+
+                <div class="account-stats">
+                    <div class="stat-card">
+                        <i class="fas fa-history"></i>
+                        <div class="stat-info">
+                            <h3>Total Detections</h3>
+                            <p>{{ detections_count or 0 }}</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-calendar"></i>
+                        <div class="stat-info">
+                            <h3>Member Since</h3>
+                            <p>
+                                {% if user.created_at %}
+                                    {{ user.created_at | format_datetime if user.created_at else 'N/A' }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

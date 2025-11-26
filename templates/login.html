@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Sound Detector</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <link rel="icon" href="{{ url_for('static', filename='images/anchor.png') }}" type="image/png">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-background"></div>
+        
+        <div class="auth-card">
+            <div class="auth-header">
+                <h1 class="auth-title">Maritime Sound Detector</h1>
+                <p class="auth-subtitle">Sign in to your account</p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-messages">
+                        {% for category, message in messages %}
+                            <div class="flash-message {{ category }}">
+                                {{ message }}
+                                <button class="flash-close" onclick="this.parentElement.remove()">×</button>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('login') }}" id="login-form">
+                <div class="form-group">
+                    <input type="text" 
+                           name="username" 
+                           id="username"
+                           class="form-input" 
+                           placeholder="Username" 
+                           required
+                           minlength="3"
+                           autocomplete="username">
+                    <div class="validation-error" id="username-error"></div>
+                </div>
+                
+                <div class="form-group">
+                    <div class="password-input-container">
+                        <input type="password" 
+                               name="password" 
+                               id="password"
+                               class="form-input" 
+                               placeholder="Password" 
+                               required
+                               minlength="6"
+                               autocomplete="current-password">
+                        <button type="button" class="password-toggle" id="password-toggle">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                    <div class="validation-error" id="password-error"></div>
+                </div>
+                
+                <button type="submit" class="btn-primary" id="login-button">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </button>
+            </form>
+
+            <div class="auth-links">
+                <a href="{{ url_for('forgot_password') }}" class="auth-link">
+                    <i class="fas fa-key"></i> Forgot Password?
+                </a>
+                <a href="{{ url_for('register') }}" class="auth-link">
+                    <i class="fas fa-user-plus"></i> Don't have an account? Register
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Password visibility toggle
+        document.getElementById('password-toggle').addEventListener('click', function() {
+            const passwordInput = document.getElementById('password');
+            const icon = this.querySelector('i');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        });
+
+        // Real-time validation
+        document.getElementById('username').addEventListener('input', function() {
+            validateUsername(this.value);
+        });
+
+        document.getElementById('password').addEventListener('input', function() {
+            validatePassword(this.value);
+        });
+
+        // Form submission with validation
+        document.getElementById('login-form').addEventListener('submit', function(e) {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (!validateUsername(username) || !validatePassword(password)) {
+                e.preventDefault();
+                return;
+            }
+            
+            // Show loading state
+            const button = document.getElementById('login-button');
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
+        });
+
+        function validateUsername(username) {
+            const errorElement = document.getElementById('username-error');
+            
+            if (!username) {
+                errorElement.textContent = 'Username is required';
+                return false;
+            }
+            
+            if (username.length < 3) {
+                errorElement.textContent = 'Username must be at least 3 characters';
+                return false;
+            }
+            
+            errorElement.textContent = '';
+            return true;
+        }
+
+        function validatePassword(password) {
+            const errorElement = document.getElementById('password-error');
+            
+            if (!password) {
+                errorElement.textContent = 'Password is required';
+                return false;
+            }
+            
+            if (password.length < 6) {
+                errorElement.textContent = 'Password must be at least 6 characters';
+                return false;
+            }
+            
+            errorElement.textContent = '';
+            return true;
+        }
+
+        // Auto-validate on page load if there are values
+        document.addEventListener('DOMContentLoaded', function() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (username) validateUsername(username);
+            if (password) validatePassword(password);
+        });
+    </script>
+
+    <style>
+        .password-input-container {
+            position: relative;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .password-toggle:hover {
+            color: var(--text-primary);
+        }
+
+        .validation-error {
+            color: #f44336;
+            font-size: 12px;
+            margin-top: 5px;
+            min-height: 18px;
+        }
+
+        .form-input:invalid {
+            border-color: #f44336;
+        }
+
+        .form-input:valid {
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</body>
+</html>
